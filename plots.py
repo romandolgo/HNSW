@@ -29,6 +29,14 @@ LAYER_RAMP = ("#86b6ef", "#5598e7", "#2a78d6", "#1c5cab", "#104281")
 PATH = "#eb6834"
 QUERY = "#1baf7a"
 
+CATEGORICAL = ("#2a78d6", "#eb6834", "#1baf7a")
+"""Первые три слота палитры — различимы при дальтонизме по всем парам."""
+
+REACHED, CUT_OFF = CATEGORICAL[0], CATEGORICAL[1]
+
+MARKERS = ("o", "s", "^")
+"""Форма маркера как вторичное кодирование серии, помимо цвета."""
+
 
 def _layer_colour(lc: int, n_layers: int) -> str:
     """Цвет слоя по его высоте: чем выше, тем темнее.
@@ -111,6 +119,124 @@ def plot_layer(
         fontsize=9,
         pad=6,
     )
+    return ax
+
+
+def plot_reachability(
+    points: npt.NDArray,
+    layer: Layer,
+    entry_point: int,
+    ax: Axes,
+    *,
+    title: str = "",
+) -> Axes:
+    """Нулевой слой с разделением на достижимое и отрезанное.
+
+    Обход направленный: усечение связей соседа выбрасывает из его списка
+    только что добавленную вершину, обратная ссылка остаётся, и часть
+    графа оказывается недостижимой при формально ненулевых степенях.
+
+    :param points: массив точек (n, 2)
+    :param layer: слой графа
+    :param entry_point: вершина, с которой начинается обход
+    :param ax: оси
+    :param title: заголовок; к нему дописывается доля достижимого
+    :return: те же оси
+    """
+    seen: set[int] = {entry_point}
+    stack: list[int] = [entry_point]
+    while stack:
+        for neighbour in layer[stack.pop()]:
+            if neighbour not in seen:
+                seen.add(neighbour)
+                stack.append(neighbour)
+
+    _bare(ax)
+    ax.add_collection(
+        LineCollection(
+            _segments(points, layer),
+            colors=CONTEXT,
+            linewidths=0.5,
+            alpha=0.7,
+            zorder=1,
+        )
+    )
+    for members, colour, size in (
+        (sorted(set(layer) - seen), CUT_OFF, 11),
+        (sorted(seen), REACHED, 11),
+    ):
+        if not members:
+            continue
+        idx: npt.NDArray = np.asarray(members, dtype=np.intp)
+        ax.scatter(
+            points[idx, 0], points[idx, 1], s=size, c=colour, linewidths=0, zorder=2
+        )
+
+    ax.set_title(
+        f"{title}\nдостижимо {len(seen)} из {len(layer)}",
+        color=INK_MUTED,
+        fontsize=9,
+        pad=6,
+    )
+    return ax
+
+
+def plot_tradeoff(
+    series: dict[str, Sequence[tuple[float, float]]],
+    ax: Axes,
+    *,
+    title: str = "",
+    xlabel: str = "вычислений расстояния на запрос",
+    ylabel: str = "recall@10",
+    slots: dict[str, int] | None = None,
+) -> Axes:
+    """Кривые «точность против стоимости» — по одной на конфигурацию.
+
+    :param series: подпись -> последовательность пар (стоимость, recall)
+    :param ax: оси
+    :param title: заголовок панели
+    :param xlabel: подпись оси абсцисс
+    :param ylabel: подпись оси ординат
+    :param slots: подпись -> номер слота палитры. Нужен, когда одна и та же
+                  конфигурация встречается на нескольких панелях: цвет должен
+                  следовать за ней, а не за порядком внутри панели
+    :return: те же оси
+    """
+    ax.set_facecolor(SURFACE)
+    ax.grid(axis="y", color=CONTEXT, linewidth=0.6, alpha=0.8)
+    ax.set_axisbelow(True)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    for side in ("left", "bottom"):
+        ax.spines[side].set_color(CONTEXT)
+    ax.tick_params(colors=INK_MUTED, labelsize=8, length=0)
+
+    for position, (label, pairs) in enumerate(series.items()):
+        xs = [x for x, _ in pairs]
+        ys = [y for _, y in pairs]
+        slot: int = position if slots is None else slots[label]
+        colour: str = CATEGORICAL[slot % len(CATEGORICAL)]
+        # Форма маркера дублирует цвет: подписи у концов линий на этих
+        # данных налезают друг на друга, а различать серии надо не только
+        # по цвету.
+        ax.plot(
+            xs,
+            ys,
+            marker=MARKERS[slot % len(MARKERS)],
+            color=colour,
+            linewidth=2.0,
+            markersize=6,
+            markeredgecolor=SURFACE,
+            markeredgewidth=1.0,
+            zorder=3,
+            label=label,
+        )
+
+    ax.set_xlabel(xlabel, color=INK_MUTED, fontsize=9)
+    ax.set_ylabel(ylabel, color=INK_MUTED, fontsize=9)
+    if title:
+        ax.set_title(title, color=INK, fontsize=10, pad=8)
+    ax.legend(frameon=False, fontsize=8, labelcolor=INK_MUTED, loc="best")
     return ax
 
 
