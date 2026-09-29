@@ -176,6 +176,6 @@ class HNSW:
             metric=self.metric,
             trace=bottom,
         )
-        if trace is not None:
+        if trace is not None and bottom is not None:
             trace.append(bottom)
         return found[:k]
