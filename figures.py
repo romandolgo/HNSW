@@ -1,10 +1,3 @@
-"""Rebuild every figure the report uses.
-
-    uv run python figures.py
-
-Writes png into figures/. Seeded throughout, so a rerun reproduces them.
-"""
-
 from pathlib import Path
 
 import numpy as np
@@ -29,25 +22,13 @@ EFS = (10, 15, 20, 30, 50, 80)
 
 
 SLOTS = {"NSW, Alg. 3": 0, "NSW, Alg. 4": 1, "HNSW, Alg. 4": 2}
-"""Palette slot pinned to a configuration, not to panel order."""
 
 
 def _clustered(*, seed: int) -> np.ndarray:
-    """The clustered set, shared by the reachability figure and the curves.
-
-    One dataset for both, so the reader holds one picture in mind. Few blobs
-    and a wide sigma keep them readable as blobs rather than dots, and plain
-    selection still strands half the graph.
-    """
     return data.clusters(CLUSTERED_N, n_clusters=CLUSTERS, sigma=SIGMA, seed=seed)
 
 
 def hierarchy() -> None:
-    """The layers and the descent across them, on uniform data.
-
-    m_l is raised above the default: at the recommended 1/ln(8) seven hundred
-    points give three or four layers, too short a staircase to look at.
-    """
     points = data.uniform(UNIFORM_N, seed=0)
     index = HNSW(points, m=8, ef_construction=40, m_l=0.9, seed=5)
     index.build()
@@ -68,7 +49,6 @@ def hierarchy() -> None:
 
 
 def reachability() -> None:
-    """Reachability on clustered data: alg. 3 tears the graph, alg. 4 holds it."""
     points = _clustered(seed=1)
 
     figure, axes = subplots(1, 2, figsize=(9.2, 5.0), facecolor=plots.SURFACE)
@@ -108,12 +88,10 @@ def reachability() -> None:
 
 
 def _curve(results: list[bench.Result]) -> list[tuple[float, float]]:
-    """One configuration's results as (cost, recall) pairs."""
     return [(r.dist_per_query, r.recall) for r in results]
 
 
 def tradeoff() -> None:
-    """Recall against cost: selectors on one panel, the hierarchy on the other."""
     points = _clustered(seed=1)
     queries = data.clusters(QUERIES_N, n_clusters=CLUSTERS, sigma=SIGMA, seed=2)
 

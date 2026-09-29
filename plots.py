@@ -1,11 +1,3 @@
-"""Plots of the layers and of the search walking them.
-
-2D data only: a point's coordinates are its place on the canvas, nothing is
-projected. Axes are dropped on the spatial panels — the units carry no
-meaning, only relative position does. Figure titles stay in Russian, they
-are the report's.
-"""
-
 from collections.abc import Sequence
 
 import numpy as np
@@ -24,27 +16,18 @@ INK_MUTED = "#52514e"
 CONTEXT = "#d8d7d2"
 
 LAYER_RAMP = ("#86b6ef", "#5598e7", "#2a78d6", "#1c5cab", "#104281")
-"""Ordinal ramp, one hue: light is layer zero, dark is the top."""
 
 PATH = "#eb6834"
 QUERY = "#1baf7a"
 
 CATEGORICAL = ("#2a78d6", "#eb6834", "#1baf7a")
-"""First three palette slots; every pair stays separable under CVD."""
 
 REACHED, CUT_OFF = CATEGORICAL[0], CATEGORICAL[1]
 
 MARKERS = ("o", "s", "^")
-"""Marker shape, so a series is never identified by colour alone."""
 
 
 def _layer_colour(lc: int, n_layers: int) -> str:
-    """Colour for a layer by its height: higher is darker.
-
-    :param lc: layer index
-    :param n_layers: how many layers there are
-    :return: a hex colour from LAYER_RAMP
-    """
     if n_layers <= 1:
         return LAYER_RAMP[2]
     position: float = lc / (n_layers - 1)
@@ -54,12 +37,6 @@ def _layer_colour(lc: int, n_layers: int) -> str:
 def _segments(
     points: npt.NDArray, layer: Layer
 ) -> list[tuple[npt.NDArray, npt.NDArray]]:
-    """A layer's edges as segments, each undirected edge once.
-
-    :param points: points (n, 2)
-    :param layer: a layer
-    :return: pairs of endpoints
-    """
     seen: set[tuple[int, int]] = set()
     segments: list[tuple[npt.NDArray, npt.NDArray]] = []
     for a, neighbours in layer.items():
@@ -73,10 +50,6 @@ def _segments(
 
 
 def _bare(ax: Axes) -> None:
-    """Strip axes, frame and ticks, leaving only the content.
-
-    :param ax: the axes
-    """
     ax.set_aspect("equal")
     ax.set_xticks([])
     ax.set_yticks([])
@@ -93,15 +66,6 @@ def plot_layer(
     colour: str = LAYER_RAMP[2],
     title: str | None = None,
 ) -> Axes:
-    """One layer: its edges and vertices, the rest of the points behind them.
-
-    :param points: points (n, 2)
-    :param layer: a layer
-    :param ax: the axes
-    :param colour: colour for this layer's edges and vertices
-    :param title: title; None builds one from the vertex and edge counts
-    :return: the same axes
-    """
     _bare(ax)
     ax.scatter(points[:, 0], points[:, 1], s=3, c=CONTEXT, linewidths=0, zorder=1)
 
@@ -132,15 +96,6 @@ def plot_reachability(
     *,
     title: str = "",
 ) -> Axes:
-    """Layer zero split into what the entry point reaches and what it misses.
-
-    :param points: points (n, 2)
-    :param layer: a layer
-    :param entry_point: where the walk starts
-    :param ax: the axes
-    :param title: title; the reachable count is appended to it
-    :return: the same axes
-    """
     seen: set[int] = {entry_point}
     stack: list[int] = [entry_point]
     while stack:
@@ -188,18 +143,6 @@ def plot_tradeoff(
     ylabel: str = "recall@10",
     slots: dict[str, int] | None = None,
 ) -> Axes:
-    """Recall against cost, one curve per configuration.
-
-    :param series: label -> (cost, recall) pairs
-    :param ax: the axes
-    :param title: panel title
-    :param xlabel: x axis label
-    :param ylabel: y axis label
-    :param slots: label -> palette slot. Needed when a configuration appears
-                  on more than one panel: colour must follow the
-                  configuration, not its position within a panel
-    :return: the same axes
-    """
     ax.set_facecolor(SURFACE)
     ax.grid(axis="y", color=CONTEXT, linewidth=0.6, alpha=0.8)
     ax.set_axisbelow(True)
@@ -236,16 +179,6 @@ def plot_tradeoff(
 
 
 def _grid(n: int, width: float, extra: float, ncols: int) -> tuple[Figure, list[Axes]]:
-    """A grid of n panels, spare cells removed.
-
-    Seven panels in one row make a figure two feet wide, so they wrap.
-
-    :param n: how many panels
-    :param width: panel side in inches
-    :param extra: height added for the title and legend
-    :param ncols: panels per row at most
-    :return: (figure, flat list of n axes)
-    """
     cols: int = min(n, ncols)
     rows: int = -(-n // cols)
     fig, axes = subplots(
@@ -264,14 +197,6 @@ def plot_layers(
     width: float = 3.1,
     ncols: int = 4,
 ) -> Figure:
-    """Every layer, top to bottom.
-
-    :param points: points (n, 2)
-    :param layers: layers, layers[0] being layer zero
-    :param width: panel side in inches
-    :param ncols: panels per row at most
-    :return: the figure
-    """
     n: int = len(layers)
     fig, axes = _grid(n, width, 0.7, ncols)
 
@@ -303,20 +228,6 @@ def plot_search(
     width: float = 3.1,
     ncols: int = 4,
 ) -> Figure:
-    """The search walk drawn over the layers, one panel each.
-
-    The orange line joins vertices in the order they were expanded, not along
-    graph edges: the search pulls candidates from a queue and can jump.
-
-    :param points: points (n, 2)
-    :param layers: layers, layers[0] being layer zero
-    :param q: query vector (2,)
-    :param trace: one walk per layer, top down, as search returns it
-    :param found: neighbours to ring on the bottom panel
-    :param width: panel side in inches
-    :param ncols: panels per row at most
-    :return: the figure
-    """
     n: int = len(layers)
     fig, axes = _grid(n, width, 1.2, ncols)
 
