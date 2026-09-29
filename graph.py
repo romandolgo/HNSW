@@ -6,10 +6,13 @@ import numpy.typing as npt
 from metrics import Metric
 
 type Layer = dict[int, list[int]]
+"""Vertex index -> its neighbours. A key present means the vertex is in the layer."""
 
 type Point = tuple[float, int]
+"""Distance to some base vertex, paired with the vertex index."""
 
 type Selector = Callable[..., list[int]]
+"""Neighbour selection strategy: select_simple or select_heuristic."""
 
 
 def search_layer(
