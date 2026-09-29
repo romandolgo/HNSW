@@ -89,6 +89,7 @@ def evaluate(
         build_dist=build_dist,
         degree_mean=degree_mean,
         degree_max=degree_max,
+        # pyrefly: ignore [bad-argument-type]
         reachable=reachable_from(index.graph, index.entry_point),
         n=len(index.graph),
     )
