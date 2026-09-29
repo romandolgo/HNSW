@@ -36,6 +36,7 @@ def search_layer(
     layer: Layer,
     points: npt.NDArray,
     metric: Metric,
+    trace: list[int] | None = None,
 ) -> list[Point]:
     """Alg. 2: SEARCH-LAYER(q, ep, ef, lc).
 
@@ -49,6 +50,9 @@ def search_layer(
     :param layer: слой, по которому идёт обход
     :param points: массив точек (n, d)
     :param metric: метрика
+    :param trace: если передан список, в него дописываются вершины в порядке
+                  разворачивания — то есть траектория жадного обхода, а не
+                  множество посещённых. Только для визуализации
     :return: не более ef пар (расстояние, индекс), по возрастанию расстояния
     """
 
@@ -67,6 +71,9 @@ def search_layer(
 
         if candidate[0] > -worst_nearest[0]:
             break
+
+        if trace is not None:
+            trace.append(candidate[1])
 
         for e in layer[candidate[1]]:
             if e in visited:

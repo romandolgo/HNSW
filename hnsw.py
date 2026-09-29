@@ -198,6 +198,7 @@ class HNSW:
         k: int,
         *,
         ef: int,
+        trace: list[list[int]] | None = None,
     ) -> list[tuple[float, int]]:
         """Alg. 5: K-NN-SEARCH(hnsw, q, K, ef).
 
@@ -205,6 +206,8 @@ class HNSW:
         :param k: число соседей
         :param ef: размер динамического списка на нулевом слое, ef >= k;
                    на верхних слоях всегда ef=1
+        :param trace: список для записи траекторий по слоям, сверху вниз —
+                      по одному вложенному списку на слой, для визуализации
         :return: k пар (расстояние, индекс), по возрастанию расстояния
         """
         if self.entry_point is None:
@@ -220,6 +223,7 @@ class HNSW:
             )
         ep: list[int] = [self.entry_point]
         for lc in range(self.max_level, 0, -1):
+            hop: list[int] | None = [] if trace is not None else None
             next_start: int = search_layer(
                 q=q,
                 ep=ep,
@@ -227,14 +231,22 @@ class HNSW:
                 layer=self.layers[lc],
                 points=self.points,
                 metric=self.metric,
+                trace=hop,
             )[0][1]
+            if trace is not None:
+                trace.append(hop)
             ep: list[int] = [next_start]
 
-        return search_layer(
+        bottom: list[int] | None = [] if trace is not None else None
+        found = search_layer(
             q=q,
             ep=ep,
             ef=ef,
             layer=self.layers[0],
             points=self.points,
             metric=self.metric,
-        )[:k]
+            trace=bottom,
+        )
+        if trace is not None:
+            trace.append(bottom)
+        return found[:k]

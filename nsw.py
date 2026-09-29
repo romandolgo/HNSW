@@ -119,12 +119,14 @@ class NSW:
         k: int,
         *,
         ef: int,
+        trace: list[int] | None = None,
     ) -> list[tuple[float, int]]:
         """Поиск k приближённо ближайших соседей.
 
         :param q: вектор запроса (d,)
         :param k: число соседей
         :param ef: размер динамического списка, ef >= k
+        :param trace: список для записи траектории обхода — для визуализации
         :return: k пар (расстояние, индекс), по возрастанию расстояния
         """
         if self.entry_point is None:
@@ -146,4 +148,5 @@ class NSW:
             layer=self.graph,
             points=self.points,
             metric=self.metric,
+            trace=trace,
         )[:k]
