@@ -1,14 +1,8 @@
-"""Замеры качества и стоимости поиска.
+"""Quality and cost of search.
 
-Качество — recall@k относительно точного ответа из brute.py. Стоимость —
-число вычислений расстояния на запрос: на двумерных данных разница во
-времени тонет в накладных расходах интерпретатора, а счётчик зависит
-только от структуры графа и параметров поиска.
-
-Отдельно снимаются две характеристики самого графа: распределение степеней
-и число вершин, достижимых из точки входа. Второе оказалось важнее
-первого — при простом отборе соседей на кластеризованных данных граф
-распадается, и recall упирается не в ширину поиска, а в недостижимость.
+Cost is counted in distance computations rather than seconds: on 2D data
+wall time drowns in interpreter overhead, while the count depends only on
+the graph and the search parameters.
 """
 
 from collections.abc import Iterable, Sequence
@@ -24,12 +18,12 @@ from nsw import NSW
 
 
 class CountingMetric:
-    """Обёртка над метрикой, считающая вычисления расстояния.
+    """Metric wrapper that counts distance computations.
 
-    Прозрачна для графа: и построение, и поиск принимают метрику
-    параметром и не знают, считает она что-нибудь или нет.
+    Transparent to the graph: build and search take a metric parameter and
+    never learn whether it counts anything.
 
-    :param metric: оборачиваемая метрика
+    :param metric: the metric to wrap
     """
 
     def __init__(self, metric: Metric = euclidean) -> None:
@@ -42,14 +36,14 @@ class CountingMetric:
 
     @property
     def count(self) -> int:
-        """Число вычислений расстояния с момента последнего reset()."""
+        """Distances computed since the last reset."""
         return self._count
 
     def reset(self) -> int:
-        """Обнулить счётчик.
+        """Zero the counter.
 
-        :return: значение до обнуления — чтобы снять показание и начать
-                 новую фазу замера одной строкой
+        :return: the value before zeroing, so a reading and the start of the
+                 next phase fit on one line
         """
         count, self._count = self._count, 0
         return count
@@ -57,16 +51,16 @@ class CountingMetric:
 
 @dataclass
 class Result:
-    """Итог одного прогона на фиксированном наборе параметров.
+    """One run at one set of parameters.
 
-    :param params: параметры прогона — m, ef_construction, selector, ef
-    :param recall: recall@k, усреднённый по запросам
-    :param dist_per_query: среднее число вычислений расстояния на запрос
-    :param build_dist: число вычислений расстояния при построении графа
-    :param degree_mean: средняя степень вершины
-    :param degree_max: максимальная степень вершины
-    :param reachable: вершин, достижимых из точки входа
-    :param n: всего вершин в графе
+    :param params: m, ef_construction, selector, ef
+    :param recall: recall@k averaged over queries
+    :param dist_per_query: distances computed per query
+    :param build_dist: distances computed while building
+    :param degree_mean: mean vertex degree
+    :param degree_max: largest vertex degree
+    :param reachable: vertices reachable from the entry point
+    :param n: vertices in the graph
     """
 
     params: dict[str, Any] = field(default_factory=dict)
@@ -80,11 +74,11 @@ class Result:
 
 
 def recall_at_k(found: Sequence[Sequence[int]], truth: npt.NDArray) -> float:
-    """Доля истинных k ближайших среди найденных, усреднённая по запросам.
+    """Share of the true k nearest that were found, averaged over queries.
 
-    :param found: по списку индексов на каждый запрос
-    :param truth: (n_queries, k) точные индексы из brute.knn_batch
-    :return: recall@k в [0, 1]
+    :param found: one list of indices per query
+    :param truth: exact indices (n_queries, k) from brute.knn_batch
+    :return: recall@k in [0, 1]
     """
     k: int = truth.shape[1]
     hits: int = sum(
@@ -94,15 +88,14 @@ def recall_at_k(found: Sequence[Sequence[int]], truth: npt.NDArray) -> float:
 
 
 def reachable_from(graph: Layer, entry_point: int) -> int:
-    """Сколько вершин достижимо из точки входа по направлению рёбер.
+    """Vertices a directed walk from the entry point can reach.
 
-    Обход именно направленный: усечение связей соседа выбрасывает из его
-    списка только что добавленную вершину, а обратная ссылка остаётся, и
-    часть графа становится недостижимой при формально ненулевых степенях.
+    Directed on purpose: shrinking a neighbour's list drops the back-edge, so
+    parts of the graph go unreachable while every degree still looks healthy.
 
-    :param graph: слой графа
-    :param entry_point: вершина, с которой начинается обход
-    :return: число достижимых вершин, включая саму точку входа
+    :param graph: a layer
+    :param entry_point: where the walk starts
+    :return: reachable vertices, the entry point included
     """
     seen: set[int] = {entry_point}
     stack: list[int] = [entry_point]
@@ -115,10 +108,10 @@ def reachable_from(graph: Layer, entry_point: int) -> int:
 
 
 def degrees(graph: Layer) -> tuple[float, int]:
-    """Средняя и максимальная степень вершины.
+    """Mean and largest vertex degree.
 
-    :param graph: слой графа
-    :return: (средняя, максимальная)
+    :param graph: a layer
+    :return: (mean, max)
     """
     sizes: list[int] = [len(neighbours) for neighbours in graph.values()]
     return sum(sizes) / len(sizes), max(sizes)
@@ -134,17 +127,17 @@ def evaluate(
     build_dist: int,
     params: dict[str, Any] | None = None,
 ) -> Result:
-    """Прогнать запросы по готовому индексу и собрать метрики.
+    """Run the queries against a built index and collect the metrics.
 
-    :param index: построенный граф
-    :param queries: массив запросов (n_queries, d)
-    :param truth: точные ответы (n_queries, k)
-    :param ef: размер динамического списка при поиске
-    :param counter: счётчик, которым построен индекс; обнуляется перед
-                    прогоном, чтобы отделить поиск от построения
-    :param build_dist: показание счётчика, снятое после построения
-    :param params: дополнительные поля для Result.params
-    :return: заполненный Result
+    :param index: a built graph
+    :param queries: query vectors (n_queries, d)
+    :param truth: exact answers (n_queries, k)
+    :param ef: candidate list size during search
+    :param counter: the counter the index was built with; zeroed first, to
+                    keep search cost apart from build cost
+    :param build_dist: the counter reading taken after the build
+    :param params: extra fields for Result.params
+    :return: the filled Result
     """
     k: int = truth.shape[1]
     counter.reset()
@@ -175,20 +168,18 @@ def sweep(
     efs: Iterable[int],
     index_cls: type = NSW,
 ) -> list[Result]:
-    """Перебор сетки параметров построения и поиска.
+    """Sweep a grid of build and search parameters.
 
-    Для каждого набора из configs граф строится один раз, после чего по
-    нему прогоняются все значения efs. Эталон считается один раз на все
-    прогоны.
+    Each config builds once, then every ef runs against that graph. Ground
+    truth is computed once for the whole sweep.
 
-    :param points: массив точек (n, d)
-    :param queries: массив запросов (n_queries, d)
-    :param k: число соседей
-    :param configs: наборы параметров построения — m, ef_construction,
-                    m_max, selector
-    :param efs: значения ef для поиска
-    :param index_cls: класс индекса, NSW или HNSW
-    :return: по одному Result на пару (набор из configs, значение ef)
+    :param points: points (n, d)
+    :param queries: query vectors (n_queries, d)
+    :param k: how many neighbours
+    :param configs: build parameters — m, ef_construction, m_max, selector
+    :param efs: search-time candidate list sizes
+    :param index_cls: NSW or HNSW
+    :return: one Result per (config, ef) pair
     """
     truth: npt.NDArray = brute.knn_batch(points, queries, k)
     results: list[Result] = []
@@ -221,11 +212,11 @@ def sweep(
 
 
 def format_table(results: Sequence[Result], *, params: Sequence[str]) -> str:
-    """Собрать результаты в текстовую таблицу.
+    """Lay results out as a text table.
 
-    :param results: что вернул sweep
-    :param params: какие поля Result.params показывать колонками
-    :return: готовая к печати таблица
+    :param results: what sweep returned
+    :param params: which Result.params fields become columns
+    :return: the table, ready to print
     """
     head: list[str] = [*params, "recall", "dist/q", "build", "deg", "max", "reach"]
     rows: list[list[str]] = [head]

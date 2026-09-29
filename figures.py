@@ -1,9 +1,8 @@
-"""Пересборка всех картинок отчёта одной командой.
+"""Rebuild every figure the report uses.
 
     uv run python figures.py
 
-Кладёт png в figures/. Данные и параметры зафиксированы зёрнами, поэтому
-повторный запуск даёт те же картинки.
+Writes png into figures/. Seeded throughout, so a rerun reproduces them.
 """
 
 from pathlib import Path
@@ -28,25 +27,26 @@ SIGMA = 0.03
 QUERIES_N = 120
 EFS = (10, 15, 20, 30, 50, 80)
 
-# Один и тот же набор точек на картинку со связностью и на кривые: иначе
-# читателю пришлось бы держать в голове два разных датасета. Кластеров
-# немного и sigma крупная, чтобы сгустки читались как пятна, а не как точки;
-# при этом простой отбор теряет половину графа, и это видно.
 
 SLOTS = {"NSW, Alg. 3": 0, "NSW, Alg. 4": 1, "HNSW, Alg. 4": 2}
-"""Слот палитры закреплён за конфигурацией, а не за порядком на панели."""
+"""Palette slot pinned to a configuration, not to panel order."""
 
 
 def _clustered(*, seed: int) -> np.ndarray:
-    """Кластеризованный набор, общий для картинки связности и для кривых."""
+    """The clustered set, shared by the reachability figure and the curves.
+
+    One dataset for both, so the reader holds one picture in mind. Few blobs
+    and a wide sigma keep them readable as blobs rather than dots, and plain
+    selection still strands half the graph.
+    """
     return data.clusters(CLUSTERED_N, n_clusters=CLUSTERS, sigma=SIGMA, seed=seed)
 
 
 def hierarchy() -> None:
-    """Слои HNSW и спуск по ним на равномерных данных.
+    """The layers and the descent across them, on uniform data.
 
-    m_l завышен против умолчания: при рекомендованном 1/ln(8) на семистах
-    точках слоёв выходит три-четыре, и лестница получается короткой.
+    m_l is raised above the default: at the recommended 1/ln(8) seven hundred
+    points give three or four layers, too short a staircase to look at.
     """
     points = data.uniform(UNIFORM_N, seed=0)
     index = HNSW(points, m=8, ef_construction=40, m_l=0.9, seed=5)
@@ -68,13 +68,16 @@ def hierarchy() -> None:
 
 
 def reachability() -> None:
-    """Связность на кластерах: Alg. 3 рвёт граф, Alg. 4 держит."""
+    """Reachability on clustered data: alg. 3 tears the graph, alg. 4 holds it."""
     points = _clustered(seed=1)
 
     figure, axes = subplots(1, 2, figsize=(9.2, 5.0), facecolor=plots.SURFACE)
     for ax, (label, selector) in zip(
         axes,
-        (("Alg. 3 — ближайшие", select_simple), ("Alg. 4 — эвристика", select_heuristic)),
+        (
+            ("Alg. 3 — ближайшие", select_simple),
+            ("Alg. 4 — эвристика", select_heuristic),
+        ),
         strict=True,
     ):
         graph = NSW(points, m=8, ef_construction=40, m_max=16, selector=selector)
@@ -105,12 +108,12 @@ def reachability() -> None:
 
 
 def _curve(results: list[bench.Result]) -> list[tuple[float, float]]:
-    """Result-ы одной конфигурации в пары (стоимость, recall)."""
+    """One configuration's results as (cost, recall) pairs."""
     return [(r.dist_per_query, r.recall) for r in results]
 
 
 def tradeoff() -> None:
-    """Точность против стоимости: сперва селекторы, затем иерархия."""
+    """Recall against cost: selectors on one panel, the hierarchy on the other."""
     points = _clustered(seed=1)
     queries = data.clusters(QUERIES_N, n_clusters=CLUSTERS, sigma=SIGMA, seed=2)
 
