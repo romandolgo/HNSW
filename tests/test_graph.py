@@ -1,5 +1,3 @@
-"""The shared core: metric, layer walk, neighbour selection."""
-
 import numpy as np
 import pytest
 
@@ -9,11 +7,6 @@ from metrics import euclidean
 
 @pytest.fixture
 def complete_layer() -> tuple[np.ndarray, dict[int, list[int]]]:
-    """Twenty random points, every pair connected.
-
-    A greedy walk cannot get stuck on a complete graph, so any disagreement
-    with exhaustive search points at the algorithm rather than the topology.
-    """
     points = np.random.default_rng(0).uniform(size=(20, 2))
     layer = {i: [j for j in range(20) if j != i] for i in range(20)}
     return points, layer
@@ -35,7 +28,6 @@ def test_euclidean_broadcasts_over_a_batch() -> None:
 
 
 def test_search_layer_is_exact_with_large_ef(complete_layer) -> None:
-    """At ef >= n the walk over a complete layer matches exhaustive search."""
     points, layer = complete_layer
     q = np.array([0.5, 0.5])
 
@@ -45,7 +37,6 @@ def test_search_layer_is_exact_with_large_ef(complete_layer) -> None:
 
 
 def test_search_layer_respects_ef(complete_layer) -> None:
-    """No longer than ef, and sorted by distance."""
     points, layer = complete_layer
     q = np.array([0.5, 0.5])
 
@@ -57,12 +48,6 @@ def test_search_layer_respects_ef(complete_layer) -> None:
 
 
 def test_search_layer_computes_each_distance_once(complete_layer) -> None:
-    """Metric calls equal visited vertices.
-
-    A vertex's distance is measured when first met and then travels in the
-    tuple. A higher count means either a lost visited check or a distance
-    being recomputed.
-    """
     points, layer = complete_layer
     calls = 0
 
@@ -76,7 +61,6 @@ def test_search_layer_computes_each_distance_once(complete_layer) -> None:
 
 
 def test_search_layer_accepts_several_entry_points(complete_layer) -> None:
-    """Line 17 of alg. 1 hands down the whole of W, so several are allowed."""
     points, layer = complete_layer
     q = np.array([0.5, 0.5])
 
@@ -111,16 +95,6 @@ BASE, NEAR, SHADOWED, DIVERSE = 0, 1, 2, 3
 
 @pytest.fixture
 def heuristic_candidates() -> list[tuple[float, int]]:
-    """Candidates with their distance to the base vertex, nearest first.
-
-    The geometry the heuristic is meant to act on: base at the origin, NEAR
-    the closest candidate, SHADOWED behind it on the same line, DIVERSE off
-    to the side.
-
-        DIVERSE (0, 1.2)
-             |
-          BASE ---- NEAR (1, 0) ---- SHADOWED (1.5, 0)
-    """
     base = HEURISTIC_POINTS[BASE]
     return sorted(
         (float(euclidean(HEURISTIC_POINTS[i], base)), i)
@@ -150,13 +124,6 @@ def test_select_simple_returns_everything_when_m_exceeds_candidates(
 
 
 def test_select_heuristic_drops_the_shadowed_candidate(heuristic_candidates) -> None:
-    """A candidate an already chosen neighbour covers better is dropped.
-
-    SHADOWED sits nearer to NEAR (0.5) than to the base (1.5), so a direct
-    edge to it is redundant — the walk gets there through NEAR. DIVERSE is
-    the other way round, nearer the base (1.2) than NEAR (1.56), and opens a
-    direction nothing covers yet.
-    """
     got = select_heuristic(
         HEURISTIC_POINTS[BASE], heuristic_candidates, 3, {}, HEURISTIC_POINTS, euclidean
     )
@@ -165,7 +132,6 @@ def test_select_heuristic_drops_the_shadowed_candidate(heuristic_candidates) -> 
 
 
 def test_keep_pruned_fills_the_result_back_to_m(heuristic_candidates) -> None:
-    """Rejects are taken back nearest first."""
     got = select_heuristic(
         HEURISTIC_POINTS[BASE],
         heuristic_candidates,
@@ -179,7 +145,6 @@ def test_keep_pruned_fills_the_result_back_to_m(heuristic_candidates) -> None:
 
 
 def test_selectors_are_interchangeable(heuristic_candidates) -> None:
-    """Both take the same arguments by name; bench relies on it."""
     kwargs = dict(
         q=HEURISTIC_POINTS[BASE],
         candidates=heuristic_candidates,

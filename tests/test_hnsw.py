@@ -1,5 +1,3 @@
-"""Multi-layer HNSW."""
-
 import numpy as np
 import pytest
 
@@ -19,18 +17,12 @@ def points() -> np.ndarray:
 
 @pytest.fixture(scope="module")
 def index(points) -> HNSW:
-    """m_l raised above the default so there are several layers.
-
-    At the recommended 1/ln(8) three hundred points give almost no upper
-    layers, and the descent would go untested.
-    """
     graph = HNSW(points, m=M, ef_construction=40, m_l=1.0, seed=5)
     graph.build()
     return graph
 
 
 def test_hierarchy_is_actually_built(index) -> None:
-    """Otherwise every other test here would be checking a flat graph."""
     assert index.max_level >= 2
 
 
@@ -43,7 +35,6 @@ def test_layer_zero_holds_every_point(index, points) -> None:
 
 
 def test_layer_membership_is_nested(index) -> None:
-    """A vertex on layer l is present on every layer below it."""
     for lc in range(index.max_level, 0, -1):
         assert set(index.layers[lc]) <= set(index.layers[lc - 1])
 
@@ -54,12 +45,10 @@ def test_layers_shrink_going_up(index) -> None:
 
 
 def test_entry_point_is_in_the_top_layer(index) -> None:
-    """Otherwise the descent dies on its first neighbour lookup."""
     assert index.entry_point in index.layers[index.max_level]
 
 
 def test_degree_within_bounds(index) -> None:
-    """Layer zero is capped by m_max0, the layers above by m_max."""
     for lc, layer in enumerate(index.layers):
         cap = index.m_max0 if lc == 0 else index.m_max
         assert max((len(ns) for ns in layer.values()), default=0) <= cap
@@ -73,14 +62,12 @@ def test_no_self_loops_and_no_duplicates(index) -> None:
 
 
 def test_neighbours_belong_to_the_same_layer(index) -> None:
-    """An edge cannot point at a vertex the layer does not hold."""
     for layer in index.layers:
         for neighbours in layer.values():
             assert all(neighbour in layer for neighbour in neighbours)
 
 
 def test_defaults_follow_the_paper(points) -> None:
-    """m_max -> m, m_max0 -> 2m, m_l -> 1/ln(m), per section 4.1."""
     graph = HNSW(points, m=M, ef_construction=40)
     assert graph.m_max == M
     assert graph.m_max0 == 2 * M
@@ -88,11 +75,6 @@ def test_defaults_follow_the_paper(points) -> None:
 
 
 def test_level_distribution_matches_m_l() -> None:
-    """Mean layers per vertex approaches 1 / (1 - exp(-1 / m_l)).
-
-    Formula (1) and the paragraph after it in section 4.1. At the recommended
-    m_l = 1 / ln(M) the expression collapses to M / (M - 1).
-    """
     graph = HNSW(np.zeros((2, 2)), m=M, ef_construction=4, seed=11)
     levels = np.fromiter(
         (graph._random_level() for _ in range(50_000)), dtype=np.int64
@@ -113,7 +95,6 @@ def test_same_seed_gives_the_same_graph(points) -> None:
 
 
 def test_recall_is_one_with_large_ef(index, points) -> None:
-    """At ef=n the widened search on layer zero degenerates to exhaustive search."""
     queries = data.uniform(10, seed=1)
     truth = brute.knn_batch(points, queries, K)
     for query, exact in zip(queries, truth, strict=True):
@@ -122,7 +103,6 @@ def test_recall_is_one_with_large_ef(index, points) -> None:
 
 
 def test_recall_is_high_at_modest_ef(index, points) -> None:
-    """On uniform 2D data the graph hardly ever misses."""
     queries = data.uniform(50, seed=2)
     truth = brute.knn_batch(points, queries, K)
     hits = sum(
@@ -149,7 +129,6 @@ def test_trace_has_one_entry_per_layer(index) -> None:
 
 
 def test_graph_property_exposes_layer_zero(index) -> None:
-    """bench leans on this to treat NSW and HNSW alike."""
     assert index.graph is index.layers[0]
 
 
