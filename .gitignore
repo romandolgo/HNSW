@@ -8,3 +8,6 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Пересобираются командой: uv run python figures.py
+figures/
