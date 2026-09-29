@@ -1,12 +1,7 @@
-"""Общее ядро графа: обход слоя (Alg. 2) и отбор соседей (Alg. 3, Alg. 4).
+"""Layer walk and neighbour selection, shared by NSW and HNSW.
 
-Номера алгоритмов — по статье Malkov & Yashunin, "Efficient and robust
-approximate nearest neighbor search using Hierarchical Navigable Small
-World graphs".
-
-Этот модуль не знает ни про уровни, ни про порядок вставки: и NSW, и HNSW
-используют один и тот же search_layer, различаясь только тем, откуда
-берутся точки входа.
+Algorithm numbers follow Malkov & Yashunin, "Efficient and robust approximate
+nearest neighbor search using Hierarchical Navigable Small World graphs".
 """
 
 import heapq
@@ -17,16 +12,13 @@ import numpy.typing as npt
 from metrics import Metric
 
 type Layer = dict[int, list[int]]
-"""Слой графа: индекс вершины -> список индексов её соседей.
-
-Словарь, а не список списков: на верхних слоях лежит лишь малая часть
-точек, и наличие ключа означает членство вершины в слое.
-"""
+"""Vertex index -> its neighbours. A key present means the vertex is in the layer."""
 
 type Point = tuple[float, int]
+"""Distance to some base vertex, paired with the vertex index."""
 
 type Selector = Callable[..., list[int]]
-"""Стратегия отбора соседей: select_simple либо select_heuristic."""
+"""Neighbour selection strategy: select_simple or select_heuristic."""
 
 
 def search_layer(
@@ -38,22 +30,18 @@ def search_layer(
     metric: Metric,
     trace: list[int] | None = None,
 ) -> list[Point]:
-    """Alg. 2: SEARCH-LAYER(q, ep, ef, lc).
+    """Alg. 2. Greedy walk over one layer, keeping the ef nearest found.
 
-    Жадный обход одного слоя с динамическим списком найденных ближайших.
-    Множество посещённых вершин — локальное для одного вызова.
-
-    :param q: вектор запроса
-    :param ep: точки входа; их может быть несколько — строка 17 Alg. 1
-               передаёт на нижний слой весь список W, а не одну вершину
-    :param ef: размер динамического списка найденных ближайших
-    :param layer: слой, по которому идёт обход
-    :param points: массив точек (n, d)
-    :param metric: метрика
-    :param trace: если передан список, в него дописываются вершины в порядке
-                  разворачивания — то есть траектория жадного обхода, а не
-                  множество посещённых. Только для визуализации
-    :return: не более ef пар (расстояние, индекс), по возрастанию расстояния
+    :param q: query vector
+    :param ep: entry points; there may be several, since line 17 of alg. 1
+               passes the whole of W down to the next layer
+    :param ef: size of the dynamic candidate list
+    :param layer: the layer to walk
+    :param points: points (n, d)
+    :param metric: distance metric
+    :param trace: if given, receives vertices in the order they are expanded —
+                  the walk itself, not the visited set. For plotting only
+    :return: at most ef (distance, index) pairs, nearest first
     """
 
     ids: list[int] = list(ep)
@@ -99,16 +87,15 @@ def select_simple(
     points: npt.NDArray,
     metric: Metric,
 ) -> list[int]:
-    """Alg. 3: SELECT-NEIGHBORS-SIMPLE(q, C, M).
+    """Alg. 3. The m candidates nearest to the base vertex.
 
-    Просто m ближайших к q кандидатов. Параметры layer, points и metric не
-    используются — они в сигнатуре, чтобы Alg. 3 и Alg. 4 были
-    взаимозаменяемы и bench мог переключать их одним параметром.
+    layer, points and metric go unused; they are in the signature so that
+    alg. 3 and alg. 4 stay interchangeable behind one parameter.
 
-    :param q: вектор базовой вершины
-    :param cand: кандидаты (расстояние до q, индекс)
-    :param m: сколько соседей вернуть
-    :return: индексы отобранных вершин
+    :param q: base vertex
+    :param candidates: (distance to q, index) pairs
+    :param m: how many neighbours to return
+    :return: indices of the chosen vertices
     """
     return [e for distance, e in heapq.nsmallest(m, candidates)]
 
@@ -124,24 +111,27 @@ def select_heuristic(
     extend_candidates: bool = False,
     keep_pruned: bool = False,
 ) -> list[int]:
-    """Alg. 4: SELECT-NEIGHBORS-HEURISTIC(q, C, M, lc, ...).
+    """Alg. 4. Neighbours chosen for diversity of direction.
 
-    Отбирает соседей «в разные стороны»: кандидат e принимается, только
-    если он ближе к q, чем к любой из уже отобранных вершин r. В строке 11
-    сравниваются d(e, q) и d(e, r) — не d(e, q) и d(r, q).
+    A candidate e is kept only when it is nearer to the base vertex than to
+    any already chosen r — line 11 compares d(e, q) against d(e, r), not
+    against d(r, q). An edge to a candidate that some chosen neighbour covers
+    better is redundant: the walk will reach it through that neighbour.
 
-    :param q: вектор базовой вершины
-    :param cand: кандидаты (расстояние до q, индекс)
-    :param m: сколько соседей вернуть
-    :param layer: слой — нужен при extend_candidates
-    :param points: массив точек (n, d)
-    :param metric: метрика
-    :param extend_candidates: расширить множество кандидатов их соседями
-                              (строки 3-7); полезно лишь на сильно
-                              кластеризованных данных
-    :param keep_pruned: добить результат отброшенными кандидатами до m
-                        штук (строки 15-17)
-    :return: индексы отобранных вершин
+    :param q: base vertex
+    :param candidates: (distance to q, index) pairs
+    :param m: how many neighbours to return
+    :param layer: only needed for extend_candidates
+    :param points: points (n, d)
+    :param metric: distance metric
+    :param extend_candidates: widen the pool with the candidates' own
+                              neighbours (lines 3-7); worth it only on
+                              heavily clustered data, and only when the base
+                              vertex is not yet in the layer — otherwise it
+                              pulls itself in and selects itself
+    :param keep_pruned: top the result back up to m from the rejects
+                        (lines 15-17)
+    :return: indices of the chosen vertices
     """
     pool: list[Point] = list(candidates)
 

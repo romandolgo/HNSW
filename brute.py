@@ -1,4 +1,4 @@
-"""Точный поиск полным перебором — эталон для оценки recall."""
+"""Exhaustive search, the oracle recall is measured against."""
 
 import numpy as np
 import numpy.typing as npt
@@ -9,16 +9,16 @@ def knn(
     q: npt.NDArray,
     k: int,
 ) -> npt.NDArray[np.intp]:
-    """Точный k-NN полным перебором.
+    """Exact k nearest neighbours.
 
-    Метрика не параметризуется намеренно: эталон всегда евклидов, и
-    выгодна векторизованная реализация на numpy, вызовы которой незачем
-    считать счётчиком расстояний.
+    The metric is fixed on purpose: ground truth is always euclidean, and a
+    vectorised implementation has no business going through the distance
+    counter.
 
-    :param points: массив точек (n, d)
-    :param q: вектор запроса (d,)
-    :param k: число соседей
-    :return: индексы k ближайших точек, по возрастанию расстояния
+    :param points: points (n, d)
+    :param q: query vector (d,)
+    :param k: how many neighbours
+    :return: indices of the k nearest, nearest first
     """
     distances_sq: npt.NDArray[np.floating] = np.sum((points - q) ** 2, axis=-1)
     nearest_idx: npt.NDArray[np.intp] = np.argpartition(distances_sq, kth=k - 1)[:k]
@@ -31,11 +31,11 @@ def knn_batch(
     queries: npt.NDArray,
     k: int,
 ) -> npt.NDArray[np.intp]:
-    """Точный k-NN для набора запросов — построение ground truth.
+    """Exact k nearest neighbours for a batch of queries.
 
-    :param points: массив точек (n, d)
-    :param queries: массив запросов (n_queries, d)
-    :param k: число соседей
-    :return: массив индексов (n_queries, k), в каждой строке по возрастанию
+    :param points: points (n, d)
+    :param queries: query vectors (n_queries, d)
+    :param k: how many neighbours
+    :return: indices (n_queries, k), each row nearest first
     """
     return np.array([knn(points, q, k) for q in queries])

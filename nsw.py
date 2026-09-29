@@ -1,9 +1,8 @@
-"""Одноуровневый NSW-граф.
+"""Single-layer NSW graph.
 
-По разделу 4.1 статьи это HNSW при mL = 0: ровно один слой. Если вдобавок
-не ограничивать степень вершины (m_max=None), получается классический NSW
-с полилогарифмической сложностью поиска; при m_max = m — направленный
-k-NN-граф со степенной сложностью.
+Section 4.1 of the paper puts it as HNSW with mL = 0. Leaving degrees
+unbounded (m_max=None) gives classic NSW; m_max = m gives a directed k-NN
+graph with power-law search complexity.
 """
 
 import numpy.typing as npt
@@ -13,15 +12,18 @@ from metrics import Metric, euclidean
 
 
 class NSW:
-    """Граф ближайших соседей с инкрементальным построением.
+    """Proximity graph built by inserting points one at a time.
 
-    :param points: массив точек (n, d)
-    :param m: число связей, создаваемых при вставке вершины
-    :param ef_construction: размер динамического списка при построении
-    :param m_max: верхняя граница степени вершины; None — не усекать
-    :param metric: метрика
-    :param selector: отбор соседей — select_simple (Alg. 3) либо
-                     select_heuristic (Alg. 4)
+    points is held by reference and assumed immutable for the object's
+    lifetime: mutating it leaves the graph silently wrong, since edges were
+    chosen against the old coordinates.
+
+    :param points: points (n, d)
+    :param m: connections created per insertion
+    :param ef_construction: candidate list size during construction
+    :param m_max: degree cap; None leaves degrees unbounded
+    :param metric: distance metric
+    :param selector: select_simple (alg. 3) or select_heuristic (alg. 4)
     """
 
     points: npt.NDArray
@@ -49,7 +51,7 @@ class NSW:
         self.entry_point: int | None = None
 
     def build(self) -> None:
-        """Вставить все точки по одной, в порядке их следования в points."""
+        """Insert every point, in array order."""
         if self.graph:
             raise RuntimeError(
                 "Graph is already built: build() is meant to be called once. "
@@ -59,16 +61,15 @@ class NSW:
             self._insert(i)
 
     def _insert(self, i: int) -> None:
-        """Вставка одной вершины.
+        """Alg. 1 collapsed to one layer.
 
-        Поиск с ef_construction от точки входа, отбор m соседей, создание
-        двунаправленных связей, при необходимости — усечение связей каждого
-        соседа до m_max (строки 12-16 Alg. 1). Усекаются связи соседа, не
-        самой вставляемой вершины: у неё их и так не больше m.
+        Search from the entry point with ef_construction, pick m neighbours,
+        link both ways, then shrink any neighbour that went over m_max. It is
+        the neighbour's list that gets shrunk, never the new vertex's — that
+        one holds at most m to begin with.
 
-        Точка входа фиксирована — это первая вставленная вершина. Ранние
-        версии NSW вместо этого делали несколько поисков от случайных
-        вершин; здесь качество поиска регулируется параметром ef.
+        The entry point is fixed at the first inserted vertex; search quality
+        is steered by ef instead of by repeated searches from random starts.
         """
         if self.entry_point is None:
             self.entry_point = i
@@ -121,13 +122,14 @@ class NSW:
         ef: int,
         trace: list[int] | None = None,
     ) -> list[tuple[float, int]]:
-        """Поиск k приближённо ближайших соседей.
+        """Approximate k nearest neighbours.
 
-        :param q: вектор запроса (d,)
-        :param k: число соседей
-        :param ef: размер динамического списка, ef >= k
-        :param trace: список для записи траектории обхода — для визуализации
-        :return: k пар (расстояние, индекс), по возрастанию расстояния
+        :param q: query vector (d,)
+        :param k: how many neighbours
+        :param ef: candidate list size; below k the result would be silently
+                   truncated, so it is rejected
+        :param trace: if given, receives the walk, for plotting
+        :return: k (distance, index) pairs, nearest first
         """
         if self.entry_point is None:
             raise RuntimeError(

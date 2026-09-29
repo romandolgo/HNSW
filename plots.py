@@ -1,9 +1,9 @@
-"""Отрисовка слоёв графа и траектории поиска на плоскости.
+"""Plots of the layers and of the search walking them.
 
-Картинки строятся только для двумерных данных: координаты точек — это и
-есть их положение на холсте, никакого проецирования не делается. Оси
-убраны намеренно, единицы измерения здесь ничего не значат, смысл несут
-взаимное расположение точек и рисунок рёбер.
+2D data only: a point's coordinates are its place on the canvas, nothing is
+projected. Axes are dropped on the spatial panels — the units carry no
+meaning, only relative position does. Figure titles stay in Russian, they
+are the report's.
 """
 
 from collections.abc import Sequence
@@ -24,26 +24,26 @@ INK_MUTED = "#52514e"
 CONTEXT = "#d8d7d2"
 
 LAYER_RAMP = ("#86b6ef", "#5598e7", "#2a78d6", "#1c5cab", "#104281")
-"""Порядковая шкала одного тона: светлое — нулевой слой, тёмное — верхний."""
+"""Ordinal ramp, one hue: light is layer zero, dark is the top."""
 
 PATH = "#eb6834"
 QUERY = "#1baf7a"
 
 CATEGORICAL = ("#2a78d6", "#eb6834", "#1baf7a")
-"""Первые три слота палитры — различимы при дальтонизме по всем парам."""
+"""First three palette slots; every pair stays separable under CVD."""
 
 REACHED, CUT_OFF = CATEGORICAL[0], CATEGORICAL[1]
 
 MARKERS = ("o", "s", "^")
-"""Форма маркера как вторичное кодирование серии, помимо цвета."""
+"""Marker shape, so a series is never identified by colour alone."""
 
 
 def _layer_colour(lc: int, n_layers: int) -> str:
-    """Цвет слоя по его высоте: чем выше, тем темнее.
+    """Colour for a layer by its height: higher is darker.
 
-    :param lc: номер слоя
-    :param n_layers: всего слоёв
-    :return: шестнадцатеричный цвет из LAYER_RAMP
+    :param lc: layer index
+    :param n_layers: how many layers there are
+    :return: a hex colour from LAYER_RAMP
     """
     if n_layers <= 1:
         return LAYER_RAMP[2]
@@ -51,12 +51,14 @@ def _layer_colour(lc: int, n_layers: int) -> str:
     return LAYER_RAMP[round(position * (len(LAYER_RAMP) - 1))]
 
 
-def _segments(points: npt.NDArray, layer: Layer) -> list[tuple[npt.NDArray, npt.NDArray]]:
-    """Рёбра слоя как отрезки, каждое неупорядоченное ребро один раз.
+def _segments(
+    points: npt.NDArray, layer: Layer
+) -> list[tuple[npt.NDArray, npt.NDArray]]:
+    """A layer's edges as segments, each undirected edge once.
 
-    :param points: массив точек (n, 2)
-    :param layer: слой графа
-    :return: список пар концов
+    :param points: points (n, 2)
+    :param layer: a layer
+    :return: pairs of endpoints
     """
     seen: set[tuple[int, int]] = set()
     segments: list[tuple[npt.NDArray, npt.NDArray]] = []
@@ -71,9 +73,9 @@ def _segments(points: npt.NDArray, layer: Layer) -> list[tuple[npt.NDArray, npt.
 
 
 def _bare(ax: Axes) -> None:
-    """Убрать оси, рамку и засечки, оставив только содержимое.
+    """Strip axes, frame and ticks, leaving only the content.
 
-    :param ax: оси
+    :param ax: the axes
     """
     ax.set_aspect("equal")
     ax.set_xticks([])
@@ -91,14 +93,14 @@ def plot_layer(
     colour: str = LAYER_RAMP[2],
     title: str | None = None,
 ) -> Axes:
-    """Нарисовать один слой: рёбра, его вершины и остальные точки фоном.
+    """One layer: its edges and vertices, the rest of the points behind them.
 
-    :param points: массив точек (n, 2)
-    :param layer: слой графа
-    :param ax: оси
-    :param colour: цвет рёбер и вершин слоя
-    :param title: заголовок; None — собрать из числа вершин и рёбер
-    :return: те же оси
+    :param points: points (n, 2)
+    :param layer: a layer
+    :param ax: the axes
+    :param colour: colour for this layer's edges and vertices
+    :param title: title; None builds one from the vertex and edge counts
+    :return: the same axes
     """
     _bare(ax)
     ax.scatter(points[:, 0], points[:, 1], s=3, c=CONTEXT, linewidths=0, zorder=1)
@@ -130,18 +132,14 @@ def plot_reachability(
     *,
     title: str = "",
 ) -> Axes:
-    """Нулевой слой с разделением на достижимое и отрезанное.
+    """Layer zero split into what the entry point reaches and what it misses.
 
-    Обход направленный: усечение связей соседа выбрасывает из его списка
-    только что добавленную вершину, обратная ссылка остаётся, и часть
-    графа оказывается недостижимой при формально ненулевых степенях.
-
-    :param points: массив точек (n, 2)
-    :param layer: слой графа
-    :param entry_point: вершина, с которой начинается обход
-    :param ax: оси
-    :param title: заголовок; к нему дописывается доля достижимого
-    :return: те же оси
+    :param points: points (n, 2)
+    :param layer: a layer
+    :param entry_point: where the walk starts
+    :param ax: the axes
+    :param title: title; the reachable count is appended to it
+    :return: the same axes
     """
     seen: set[int] = {entry_point}
     stack: list[int] = [entry_point]
@@ -190,17 +188,17 @@ def plot_tradeoff(
     ylabel: str = "recall@10",
     slots: dict[str, int] | None = None,
 ) -> Axes:
-    """Кривые «точность против стоимости» — по одной на конфигурацию.
+    """Recall against cost, one curve per configuration.
 
-    :param series: подпись -> последовательность пар (стоимость, recall)
-    :param ax: оси
-    :param title: заголовок панели
-    :param xlabel: подпись оси абсцисс
-    :param ylabel: подпись оси ординат
-    :param slots: подпись -> номер слота палитры. Нужен, когда одна и та же
-                  конфигурация встречается на нескольких панелях: цвет должен
-                  следовать за ней, а не за порядком внутри панели
-    :return: те же оси
+    :param series: label -> (cost, recall) pairs
+    :param ax: the axes
+    :param title: panel title
+    :param xlabel: x axis label
+    :param ylabel: y axis label
+    :param slots: label -> palette slot. Needed when a configuration appears
+                  on more than one panel: colour must follow the
+                  configuration, not its position within a panel
+    :return: the same axes
     """
     ax.set_facecolor(SURFACE)
     ax.grid(axis="y", color=CONTEXT, linewidth=0.6, alpha=0.8)
@@ -216,9 +214,6 @@ def plot_tradeoff(
         ys = [y for _, y in pairs]
         slot: int = position if slots is None else slots[label]
         colour: str = CATEGORICAL[slot % len(CATEGORICAL)]
-        # Форма маркера дублирует цвет: подписи у концов линий на этих
-        # данных налезают друг на друга, а различать серии надо не только
-        # по цвету.
         ax.plot(
             xs,
             ys,
@@ -241,16 +236,15 @@ def plot_tradeoff(
 
 
 def _grid(n: int, width: float, extra: float, ncols: int) -> tuple[Figure, list[Axes]]:
-    """Сетка панелей под n слоёв, лишние клетки убираются.
+    """A grid of n panels, spare cells removed.
 
-    Ряд из семи панелей даёт фигуру в два десятка дюймов шириной, поэтому
-    панели заворачиваются в несколько рядов.
+    Seven panels in one row make a figure two feet wide, so they wrap.
 
-    :param n: сколько панелей нужно
-    :param width: сторона панели в дюймах
-    :param extra: добавка к высоте фигуры под заголовок и легенду
-    :param ncols: максимум панелей в ряду
-    :return: (фигура, плоский список осей длины n)
+    :param n: how many panels
+    :param width: panel side in inches
+    :param extra: height added for the title and legend
+    :param ncols: panels per row at most
+    :return: (figure, flat list of n axes)
     """
     cols: int = min(n, ncols)
     rows: int = -(-n // cols)
@@ -270,13 +264,13 @@ def plot_layers(
     width: float = 3.1,
     ncols: int = 4,
 ) -> Figure:
-    """Все слои от верхнего к нулевому — от разреженной магистрали к плотному низу.
+    """Every layer, top to bottom.
 
-    :param points: массив точек (n, 2)
-    :param layers: слои графа, layers[0] нулевой
-    :param width: сторона одной панели в дюймах
-    :param ncols: максимум панелей в ряду
-    :return: готовая фигура
+    :param points: points (n, 2)
+    :param layers: layers, layers[0] being layer zero
+    :param width: panel side in inches
+    :param ncols: panels per row at most
+    :return: the figure
     """
     n: int = len(layers)
     fig, axes = _grid(n, width, 0.7, ncols)
@@ -309,19 +303,19 @@ def plot_search(
     width: float = 3.1,
     ncols: int = 4,
 ) -> Figure:
-    """Траектория поиска поверх слоёв, по панели на слой.
+    """The search walk drawn over the layers, one panel each.
 
-    Оранжевая ломаная соединяет вершины в порядке разворачивания, а не по
-    рёбрам графа: поиск достаёт кандидатов из очереди и может перескочить.
+    The orange line joins vertices in the order they were expanded, not along
+    graph edges: the search pulls candidates from a queue and can jump.
 
-    :param points: массив точек (n, 2)
-    :param layers: слои графа, layers[0] нулевой
-    :param q: вектор запроса (2,)
-    :param trace: траектории по слоям сверху вниз — то, что вернул search
-    :param found: индексы найденных соседей, подсвечиваются на нижней панели
-    :param width: сторона одной панели в дюймах
-    :param ncols: максимум панелей в ряду
-    :return: готовая фигура
+    :param points: points (n, 2)
+    :param layers: layers, layers[0] being layer zero
+    :param q: query vector (2,)
+    :param trace: one walk per layer, top down, as search returns it
+    :param found: neighbours to ring on the bottom panel
+    :param width: panel side in inches
+    :param ncols: panels per row at most
+    :return: the figure
     """
     n: int = len(layers)
     fig, axes = _grid(n, width, 1.2, ncols)

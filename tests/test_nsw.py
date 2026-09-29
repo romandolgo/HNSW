@@ -1,4 +1,4 @@
-"""Проверки одноуровневого NSW."""
+"""Single-layer NSW."""
 
 import numpy as np
 import pytest
@@ -19,7 +19,7 @@ def points() -> np.ndarray:
 
 @pytest.fixture(scope="module")
 def unbounded(points) -> NSW:
-    """Классический NSW: степени ничем не ограничены, усечения нет."""
+    """Classic NSW: degrees unbounded, nothing ever shrunk."""
     graph = NSW(points, m=6, ef_construction=30)
     graph.build()
     return graph
@@ -27,7 +27,7 @@ def unbounded(points) -> NSW:
 
 @pytest.fixture(scope="module")
 def bounded(points) -> NSW:
-    """С усечением связей — то, что превращает граф в направленный."""
+    """With shrinking, which is what makes the graph directed."""
     graph = NSW(points, m=6, ef_construction=30, m_max=12)
     graph.build()
     return graph
@@ -38,10 +38,10 @@ def test_every_point_is_inserted(unbounded, points) -> None:
 
 
 def test_edges_are_symmetric(unbounded) -> None:
-    """Связи двунаправленные, пока не включено усечение.
+    """Edges go both ways as long as nothing is shrunk.
 
-    При m_max=None списки соседей никто не пересобирает, поэтому обратная
-    ссылка всегда на месте. С усечением это уже не так — см. соседний тест.
+    At m_max=None no neighbour list is ever rebuilt, so the back-edge always
+    survives. With shrinking it does not — see the next test.
     """
     for vertex, neighbours in unbounded.graph.items():
         for neighbour in neighbours:
@@ -49,13 +49,12 @@ def test_edges_are_symmetric(unbounded) -> None:
 
 
 def test_shrinking_breaks_symmetry(bounded) -> None:
-    """Усечение соседа выбрасывает из его списка только что добавленную
-    вершину, а обратная ссылка остаётся. Односторонние рёбра — штатное
-    поведение HNSW, а не ошибка, и именно поэтому test_edges_are_symmetric
-    проверяет только вариант без усечения.
+    """Shrinking a neighbour drops the vertex just added, keeping the
+    back-edge and leaving a one-way edge. Intended HNSW behaviour, which is
+    why test_edges_are_symmetric only covers the unshrunk case.
     """
     at_cap = sum(1 for ns in bounded.graph.values() if len(ns) == bounded.m_max)
-    assert at_cap > 0, "усечение ни разу не сработало — тест ничего не проверяет"
+    assert at_cap > 0, "nothing was ever shrunk, so this test checks nothing"
 
     one_way = sum(
         1
@@ -67,7 +66,6 @@ def test_shrinking_breaks_symmetry(bounded) -> None:
 
 
 def test_degree_within_bounds(bounded) -> None:
-    """Степень вершины не превышает m_max."""
     assert max(len(ns) for ns in bounded.graph.values()) <= bounded.m_max
 
 
@@ -78,7 +76,7 @@ def test_no_self_loops_and_no_duplicates(bounded) -> None:
 
 
 def test_recall_is_one_with_large_ef(unbounded, points) -> None:
-    """При ef=n обход связного графа вырождается в полный перебор."""
+    """At ef=n the walk over a connected graph degenerates to exhaustive search."""
     queries = data.uniform(10, seed=1)
     truth = brute.knn_batch(points, queries, K)
     for query, exact in zip(queries, truth, strict=True):
@@ -109,7 +107,7 @@ def test_trace_does_not_change_the_result(bounded) -> None:
 
 
 def test_fewer_points_than_k_is_not_an_error(points) -> None:
-    """Если в графе меньше k вершин, возвращается всё, что есть."""
+    """Fewer than k vertices returns what there is, and is not an error."""
     small = NSW(points[:3], m=6, ef_construction=30)
     small.build()
     assert len(small.search(np.array([0.5, 0.5]), 10, ef=10)) == 3
@@ -133,11 +131,11 @@ def test_ef_below_k_raises(bounded) -> None:
 
 
 def test_heuristic_keeps_clustered_data_reachable() -> None:
-    """Главный результат работы: на кластерах Alg. 3 рвёт связность, Alg. 4 нет.
+    """The headline result: on clustered data alg. 3 tears the graph, alg. 4 does not.
 
-    Простой отбор соединяет вершину с ближайшими, то есть со своими же по
-    сгустку, и мосты между кластерами не возникают. Эвристика строит
-    relative neighborhood graph, который глобальную компоненту сохраняет.
+    Plain selection links a vertex to its nearest, which are its own blob, so
+    no bridge between blobs ever forms. The heuristic builds a relative
+    neighborhood graph, which keeps the global component intact.
     """
     clustered = data.clusters(400, n_clusters=8, sigma=0.01, seed=3)
 
