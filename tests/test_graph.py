@@ -13,12 +13,6 @@ def test_euclidean_matches_numpy() -> None:
 
 
 @pytest.mark.skip(reason="TODO")
-def test_counting_metric_counts_calls() -> None:
-    """CountingMetric не искажает значение и честно считает вызовы."""
-    raise NotImplementedError
-
-
-@pytest.mark.skip(reason="TODO")
 def test_search_layer_is_exact_with_large_ef() -> None:
     """При ef >= n обход одного связного слоя находит точного соседа."""
     raise NotImplementedError
