@@ -10,9 +10,8 @@ World graphs".
 """
 
 import heapq
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable
 
-import numpy as np
 import numpy.typing as npt
 
 from metrics import Metric

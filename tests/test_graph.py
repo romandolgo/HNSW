@@ -44,8 +44,9 @@ def test_recall_is_one_with_large_ef() -> None:
 
 @pytest.mark.skip(reason="TODO")
 def test_level_distribution_matches_m_l() -> None:
-    """Среднее число слоёв у вершины близко к 1 / (1 - exp(-m_l)).
+    """Среднее число слоёв у вершины близко к 1 / (1 - exp(-1 / m_l)).
 
-    Формула (1) и следующий за ней абзац раздела 4.1.
+    Формула (1) и следующий за ней абзац раздела 4.1. При рекомендованном
+    m_l = 1 / ln(M) выражение сворачивается в M / (M - 1).
     """
     raise NotImplementedError

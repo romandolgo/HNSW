@@ -16,3 +16,7 @@ def euclidean(a: npt.NDArray, b: npt.NDArray) -> float:
     :return: расстояние
     """
     return np.linalg.norm(a - b, ord=2, axis=-1)
+
+
+def manhattan(a: npt.NDArray, b: npt.NDArray) -> float:
+    return np.linalg.norm(a - b, ord=1, axis=-1)
