@@ -162,7 +162,7 @@ class HNSW:
                 metric=self.metric,
                 trace=hop,
             )[0][1]
-            if trace is not None:
+            if trace is not None and hop is not None:
                 trace.append(hop)
             ep: list[int] = [next_start]
 
