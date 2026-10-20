@@ -62,6 +62,7 @@ def reachability() -> None:
     ):
         graph = NSW(points, m=8, ef_construction=40, m_max=16, selector=selector)
         graph.build()
+        # pyrefly: ignore[bad-argument-type]
         plots.plot_reachability(points, graph.graph, graph.entry_point, ax, title=label)
 
     figure.suptitle(
@@ -71,10 +72,24 @@ def reachability() -> None:
     )
     figure.legend(
         handles=[
-            plots.Line2D([], [], color=plots.REACHED, marker="o", linewidth=0,
-                         markersize=7, label="достижимо"),
-            plots.Line2D([], [], color=plots.CUT_OFF, marker="o", linewidth=0,
-                         markersize=7, label="отрезано"),
+            plots.Line2D(
+                [],
+                [],
+                color=plots.REACHED,
+                marker="o",
+                linewidth=0,
+                markersize=7,
+                label="достижимо",
+            ),
+            plots.Line2D(
+                [],
+                [],
+                color=plots.CUT_OFF,
+                marker="o",
+                linewidth=0,
+                markersize=7,
+                label="отрезано",
+            ),
         ],
         loc="lower center",
         ncol=2,
@@ -95,18 +110,30 @@ def tradeoff() -> None:
     points = _clustered(seed=1)
     queries = data.clusters(QUERIES_N, n_clusters=CLUSTERS, sigma=SIGMA, seed=2)
 
-    common = dict(m=8, ef_construction=40)
+    common = {"m": 8, "ef_construction": 40}
     runs = {
         "NSW, Alg. 3": bench.sweep(
-            points, queries, k=K, index_cls=NSW, efs=EFS,
+            points,
+            queries,
+            k=K,
+            index_cls=NSW,
+            efs=EFS,
             configs=[dict(**common, m_max=16, selector=select_simple)],
         ),
         "NSW, Alg. 4": bench.sweep(
-            points, queries, k=K, index_cls=NSW, efs=EFS,
+            points,
+            queries,
+            k=K,
+            index_cls=NSW,
+            efs=EFS,
             configs=[dict(**common, m_max=16, selector=select_heuristic)],
         ),
         "HNSW, Alg. 4": bench.sweep(
-            points, queries, k=K, index_cls=HNSW, efs=EFS,
+            points,
+            queries,
+            k=K,
+            index_cls=HNSW,
+            efs=EFS,
             configs=[dict(**common, seed=1, selector=select_heuristic)],
         ),
     }
