@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-import brute
+import bruteforce
 import data
 from graph import select_heuristic, select_simple
 from nsw import NSW
@@ -64,7 +64,7 @@ def test_no_self_loops_and_no_duplicates(bounded) -> None:
 
 def test_recall_is_one_with_large_ef(unbounded, points) -> None:
     queries = data.uniform(10, seed=1)
-    truth = brute.knn_batch(points, queries, K)
+    truth = bruteforce.knn_batch(points, queries, K)
     for query, exact in zip(queries, truth, strict=True):
         found = [i for _, i in unbounded.search(query, K, ef=N)]
         assert found == exact.tolist()

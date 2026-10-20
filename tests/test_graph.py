@@ -23,6 +23,7 @@ def test_euclidean_broadcasts_over_a_batch() -> None:
     rng = np.random.default_rng(1)
     q, batch = rng.uniform(size=3), rng.uniform(size=(7, 3))
     got = euclidean(batch, q)
+    # pyrefly: ignore[missing-attribute]
     assert got.shape == (7,)
     assert got == pytest.approx(np.linalg.norm(batch - q, axis=-1))
 
@@ -145,13 +146,13 @@ def test_keep_pruned_fills_the_result_back_to_m(heuristic_candidates) -> None:
 
 
 def test_selectors_are_interchangeable(heuristic_candidates) -> None:
-    kwargs = dict(
-        q=HEURISTIC_POINTS[BASE],
-        candidates=heuristic_candidates,
-        m=2,
-        layer={},
-        points=HEURISTIC_POINTS,
-        metric=euclidean,
-    )
+    kwargs = {
+        "q": HEURISTIC_POINTS[BASE],
+        "candidates": heuristic_candidates,
+        "m": 2,
+        "layer": {},
+        "points": HEURISTIC_POINTS,
+        "metric": euclidean,
+    }
     for selector in (select_simple, select_heuristic):
         assert len(selector(**kwargs)) <= 2

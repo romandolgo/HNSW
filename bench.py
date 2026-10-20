@@ -4,7 +4,7 @@ from typing import Any
 
 import numpy.typing as npt
 
-import brute
+import bruteforce
 from graph import Layer
 from metrics import Metric, euclidean
 from nsw import NSW
@@ -104,7 +104,7 @@ def sweep(
     efs: Iterable[int],
     index_cls: type = NSW,
 ) -> list[Result]:
-    truth: npt.NDArray = brute.knn_batch(points, queries, k)
+    truth: npt.NDArray = bruteforce.knn_batch(points, queries, k)
     results: list[Result] = []
 
     for config in configs:

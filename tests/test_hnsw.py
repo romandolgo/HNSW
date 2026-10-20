@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-import brute
+import bruteforce
 import data
 from hnsw import HNSW
 
@@ -96,7 +96,7 @@ def test_same_seed_gives_the_same_graph(points) -> None:
 
 def test_recall_is_one_with_large_ef(index, points) -> None:
     queries = data.uniform(10, seed=1)
-    truth = brute.knn_batch(points, queries, K)
+    truth = bruteforce.knn_batch(points, queries, K)
     for query, exact in zip(queries, truth, strict=True):
         found = [i for _, i in index.search(query, K, ef=N)]
         assert found == exact.tolist()
@@ -104,7 +104,7 @@ def test_recall_is_one_with_large_ef(index, points) -> None:
 
 def test_recall_is_high_at_modest_ef(index, points) -> None:
     queries = data.uniform(50, seed=2)
-    truth = brute.knn_batch(points, queries, K)
+    truth = bruteforce.knn_batch(points, queries, K)
     hits = sum(
         len({i for _, i in index.search(query, K, ef=4 * K)} & set(exact.tolist()))
         for query, exact in zip(queries, truth, strict=True)
