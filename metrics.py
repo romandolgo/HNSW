@@ -7,8 +7,8 @@ type Metric = Callable[[npt.NDArray, npt.NDArray], float]
 
 
 def euclidean(a: npt.NDArray, b: npt.NDArray) -> float:
-    return np.linalg.norm(a - b, ord=2, axis=-1)
+    return float(np.linalg.norm(a - b, ord=2, axis=-1))
 
 
 def manhattan(a: npt.NDArray, b: npt.NDArray) -> float:
-    return np.linalg.norm(a - b, ord=1, axis=-1)
+    return float(np.linalg.norm(a - b, ord=1, axis=-1))
