@@ -1,3 +1,4 @@
+import numpy as np
 import numpy.typing as npt
 
 from graph import Layer, Selector, search_layer, select_simple
@@ -19,6 +20,12 @@ class NSW:
         metric: Metric = euclidean,
         selector: Selector = select_simple,
     ) -> None:
+        if m < 1:
+            raise ValueError("m must be >= 1")
+        if m_max is not None and m_max < m:
+            raise ValueError("m_max must be >= m")
+        if len(np.unique(points, axis=0)) != len(points):
+            raise ValueError("Duplicate points")
         self.points: npt.NDArray = points
         self.m: int = m
         self.ef_construction: int = ef_construction
@@ -31,10 +38,7 @@ class NSW:
 
     def build(self) -> None:
         if self.graph:
-            raise RuntimeError(
-                "Graph is already built: build() is meant to be called once. "
-                "Create a new NSW to rebuild."
-            )
+            raise RuntimeError("Graph already built")
         for i in range(self.points.shape[0]):
             self._insert(i)
 
@@ -80,6 +84,7 @@ class NSW:
                 layer=self.graph,
                 points=self.points,
                 metric=self.metric,
+                exclude=n,
             )
 
     def search(
@@ -88,19 +93,12 @@ class NSW:
         k: int,
         *,
         ef: int,
-        trace: list[int] | None = None,
     ) -> list[tuple[float, int]]:
         if self.entry_point is None:
-            raise RuntimeError(
-                "Graph is not built: you cannot use search on unbuilt graph. "
-                "To build the graph first use build() method."
-            )
+            raise RuntimeError("Build graph first")
 
         if ef < k:
-            raise ValueError(
-                f"ef must be at least k: got ef={ef}, k={k}. "
-                "A smaller ef truncates the result to ef neighbours."
-            )
+            raise ValueError("ef must be >= k")
 
         return search_layer(
             q=q,
@@ -109,5 +107,4 @@ class NSW:
             layer=self.graph,
             points=self.points,
             metric=self.metric,
-            trace=trace,
         )[:k]

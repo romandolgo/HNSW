@@ -23,6 +23,17 @@ class HNSW:
         selector: Selector = select_heuristic,
         seed: int | None = None,
     ) -> None:
+        if m < 2:
+            raise ValueError("m must be >= 2")
+        if m_max is not None and m_max < m:
+            raise ValueError("m_max must be >= m")
+        if m_max0 is not None and m_max0 < m:
+            raise ValueError("m_max0 must be >= m")
+        if m_l is not None and (not np.isfinite(m_l) or m_l < 0):
+            raise ValueError("m_l must be finite and >= 0")
+        if len(np.unique(points, axis=0)) != len(points):
+            raise ValueError("Duplicate points")
+
         self.points: npt.NDArray = points
         self.m: int = m
         self.ef_construction: int = ef_construction
@@ -48,10 +59,7 @@ class HNSW:
 
     def build(self) -> None:
         if self.layers:
-            raise RuntimeError(
-                "Graph is already built: build() is meant to be called once. "
-                "Create a new HNSW to rebuild."
-            )
+            raise RuntimeError("Graph is already built.")
         for i in range(self.points.shape[0]):
             self._insert(i)
 
@@ -82,6 +90,7 @@ class HNSW:
                 layer=layer,
                 points=self.points,
                 metric=self.metric,
+                exclude=n,
             )
 
     def _insert(self, i: int) -> None:
@@ -137,22 +146,14 @@ class HNSW:
         k: int,
         *,
         ef: int,
-        trace: list[list[int]] | None = None,
     ) -> list[tuple[float, int]]:
         if self.entry_point is None:
-            raise RuntimeError(
-                "Graph is not built: you cannot use search on unbuilt graph. "
-                "To build the graph first use build() method."
-            )
+            raise RuntimeError("Build graph first")
 
         if ef < k:
-            raise ValueError(
-                f"ef must be at least k: got ef={ef}, k={k}. "
-                "A smaller ef truncates the result to ef neighbours."
-            )
+            raise ValueError("ef must be >= k")
         ep: list[int] = [self.entry_point]
         for lc in range(self.max_level, 0, -1):
-            hop: list[int] | None = [] if trace is not None else None
             next_start: int = search_layer(
                 q=q,
                 ep=ep,
@@ -160,22 +161,14 @@ class HNSW:
                 layer=self.layers[lc],
                 points=self.points,
                 metric=self.metric,
-                trace=hop,
             )[0][1]
-            if trace is not None and hop is not None:
-                trace.append(hop)
-            ep: list[int] = [next_start]
+            ep = [next_start]
 
-        bottom: list[int] | None = [] if trace is not None else None
-        found = search_layer(
+        return search_layer(
             q=q,
             ep=ep,
             ef=ef,
             layer=self.layers[0],
             points=self.points,
             metric=self.metric,
-            trace=bottom,
-        )
-        if trace is not None and bottom is not None:
-            trace.append(bottom)
-        return found[:k]
+        )[:k]

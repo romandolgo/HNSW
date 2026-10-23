@@ -1,16 +1,29 @@
+from pathlib import Path
+from urllib.request import urlopen
+
 import numpy as np
 import numpy.typing as npt
+from tqdm import tqdm
 
 
-def uniform(n: int, seed: int, d: int = 2) -> npt.NDArray:
-    rng = np.random.default_rng(seed=seed)
-    return rng.uniform(low=0.0, high=1.0, size=(n, d))
-
-
-def clusters(
-    n: int, n_clusters: int, sigma: float, seed: int, d: int = 2
-) -> npt.NDArray:
-    rng = np.random.default_rng(seed=seed)
-    centers: npt.NDArray = rng.uniform(low=0.0, high=1.0, size=(n_clusters, d))
-    labels: npt.NDArray = rng.integers(0, n_clusters, size=n)
-    return centers[labels] + rng.normal(loc=0.0, scale=sigma, size=(n, d))
+def pendigits() -> tuple[npt.NDArray, npt.NDArray]:
+    folder = Path("datasets/pendigits")
+    folder.mkdir(parents=True, exist_ok=True)
+    samples = []
+    for split, size in {"tra": 502098, "tes": 234366}.items():
+        path = folder / f"pendigits.{split}"
+        if not path.exists():
+            url = f"https://archive.ics.uci.edu/ml/machine-learning-databases/pendigits/{path.name}"
+            temporary = path.with_suffix(".tmp")
+            with urlopen(url, timeout=30) as response, temporary.open("wb") as output:
+                total = int(response.headers.get("Content-Length", size))
+                with tqdm(
+                    total=total, desc=path.name, unit="B", unit_scale=True,
+                    unit_divisor=1024, dynamic_ncols=True,
+                ) as progress:
+                    while chunk := response.read(65536):
+                        output.write(chunk)
+                        progress.update(len(chunk))
+            temporary.replace(path)
+        samples.append(np.loadtxt(path, delimiter=",", dtype=float)[:, :-1] / 100)
+    return samples[0], samples[1]

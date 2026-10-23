@@ -6,13 +6,8 @@ import numpy.typing as npt
 from metrics import Metric
 
 type Layer = dict[int, list[int]]
-"""Vertex index -> its neighbours. A key present means the vertex is in the layer."""
-
 type Point = tuple[float, int]
-"""Distance to some base vertex, paired with the vertex index."""
-
 type Selector = Callable[..., list[int]]
-"""Neighbour selection strategy: select_simple or select_heuristic."""
 
 
 def search_layer(
@@ -22,7 +17,6 @@ def search_layer(
     layer: Layer,
     points: npt.NDArray,
     metric: Metric,
-    trace: list[int] | None = None,
 ) -> list[Point]:
     ids: list[int] = list(ep)
     visited: set[int] = set(ids)
@@ -39,9 +33,6 @@ def search_layer(
 
         if candidate[0] > -worst_nearest[0]:
             break
-
-        if trace is not None:
-            trace.append(candidate[1])
 
         for e in layer[candidate[1]]:
             if e in visited:
@@ -66,8 +57,11 @@ def select_simple(
     layer: Layer,
     points: npt.NDArray,
     metric: Metric,
+    *,
+    exclude: int | None = None,
 ) -> list[int]:
-    return [e for distance, e in heapq.nsmallest(m, candidates)]
+    pool = [(d, e) for d, e in candidates if e != exclude]
+    return [e for _, e in heapq.nsmallest(m, pool)]
 
 
 def select_heuristic(
@@ -78,14 +72,17 @@ def select_heuristic(
     points: npt.NDArray,
     metric: Metric,
     *,
+    exclude: int | None = None,
     extend_candidates: bool = False,
     keep_pruned: bool = False,
 ) -> list[int]:
-    pool: list[Point] = list(candidates)
+    pool = [(d, e) for d, e in candidates if e != exclude]
 
     if extend_candidates:
-        seen: set[int] = {e for _, e in candidates}
-        for _, c in candidates:
+        seen = {e for _, e in pool}
+        if exclude is not None:
+            seen.add(exclude)
+        for _, c in list(pool):
             for adj in layer[c]:
                 if adj not in seen:
                     seen.add(adj)
