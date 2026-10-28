@@ -6,10 +6,6 @@ from metrics import Metric, euclidean
 
 
 class HNSW:
-    points: npt.NDArray
-    layers: list[Layer]
-    entry_point: int | None
-
     def __init__(
         self,
         points: npt.NDArray,

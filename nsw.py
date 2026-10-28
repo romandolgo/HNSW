@@ -6,10 +6,6 @@ from metrics import Metric, euclidean
 
 
 class NSW:
-    points: npt.NDArray
-    graph: Layer
-    entry_point: int | None
-
     def __init__(
         self,
         points: npt.NDArray,
