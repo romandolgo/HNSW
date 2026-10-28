@@ -51,7 +51,7 @@ def main() -> None:
                 else:
                     config["seed"] = 0
                 configs.append(config)
-            results = bench.sweep(
+            results = bench.pereborchik(
                 points, queries, k=K, configs=configs, efs=EFS, index_cls=index_cls
             )
             print(bench.format_table(results))

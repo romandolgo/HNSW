@@ -23,7 +23,7 @@ def recall_at_k(found: list[list[int]], truth: npt.NDArray) -> float:
     return hits / truth.size
 
 
-def sweep(
+def pereborchik(
     points: npt.NDArray,
     queries: npt.NDArray,
     *,
@@ -44,12 +44,14 @@ def sweep(
         for ef in efs:
             counter.count = 0
             found = [[i for _, i in index.search(q, k, ef=ef)] for q in queries]
-            results.append({
-                "m": config["m"],
-                "ef": ef,
-                "recall": recall_at_k(found, truth),
-                "dist_per_query": counter.count / len(queries),
-            })
+            results.append(
+                {
+                    "m": config["m"],
+                    "ef": ef,
+                    "recall": recall_at_k(found, truth),
+                    "dist_per_query": counter.count / len(queries),
+                }
+            )
     return results
 
 
