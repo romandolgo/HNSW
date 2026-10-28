@@ -1,11 +1,11 @@
 from pathlib import Path
 
 import numpy as np
-import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 import bench
 import data
-from graph import select_heuristic
+from graph import select_heuristic, select_simple
 from hnsw import HNSW
 from nsw import NSW
 
@@ -20,50 +20,72 @@ OUT = Path("figures/pendigits.html")
 def main() -> None:
     points, queries = data.pendigits()
     queries = np.random.default_rng(0).permutation(queries)[:QUERIES]
-    figure = go.Figure()
+    selectors = (("Simple", select_simple), ("Heuristic", select_heuristic))
+    figure = make_subplots(
+        rows=1,
+        cols=2,
+        shared_xaxes="all",
+        shared_yaxes=True,
+        subplot_titles=("Simple: nearest neighbours", "Heuristic: diverse neighbours"),
+        horizontal_spacing=0.06,
+    )
 
-    for index_cls, dash, symbol in ((NSW, "dash", "circle"), (HNSW, "solid", "square")):
-        print(f"\n{index_cls.__name__}: building and searching...", flush=True)
-        configs = []
-        for m in M_VALUES:
-            config = {
-                "m": m,
-                "ef_construction": 100,
-                "selector": select_heuristic,
-            }
-            if index_cls is NSW:
-                config["m_max"] = 2 * m
-            else:
-                config["seed"] = 0
-            configs.append(config)
-        results = bench.sweep(
-            points, queries, k=K, configs=configs, efs=EFS, index_cls=index_cls
-        )
-        print(bench.format_table(results))
-
-        for i, m in enumerate(M_VALUES):
-            rows = [r for r in results if r["m"] == m]
-            figure.add_scatter(
-                x=[r["dist_per_query"] for r in rows],
-                y=[r["recall"] for r in rows],
-                mode="lines+markers",
-                name=f"{index_cls.__name__}, m={m}",
-                line={"color": COLORS[i], "dash": dash},
-                marker={"symbol": symbol, "size": 8},
-                customdata=[r["ef"] for r in rows],
-                hovertemplate="ef=%{customdata}<br>Recall=%{y:.4f}"
-                "<br>Distances/query=%{x:.1f}<extra>%{fullData.name}</extra>",
+    for col, (selector_name, selector) in enumerate(selectors, start=1):
+        for index_cls, dash, symbol in (
+            (NSW, "dash", "circle"),
+            (HNSW, "solid", "square"),
+        ):
+            print(
+                f"\n{index_cls.__name__}, {selector_name}: building and searching...",
+                flush=True,
             )
+            configs = []
+            for m in M_VALUES:
+                config = {
+                    "m": m,
+                    "ef_construction": 100,
+                    "selector": selector,
+                }
+                if index_cls is NSW:
+                    config["m_max"] = 2 * m
+                else:
+                    config["seed"] = 0
+                configs.append(config)
+            results = bench.sweep(
+                points, queries, k=K, configs=configs, efs=EFS, index_cls=index_cls
+            )
+            print(bench.format_table(results))
+
+            for i, m in enumerate(M_VALUES):
+                rows = [r for r in results if r["m"] == m]
+                name = f"{index_cls.__name__}, m={m}"
+                figure.add_scatter(
+                    x=[r["dist_per_query"] for r in rows],
+                    y=[r["recall"] for r in rows],
+                    mode="lines+markers",
+                    name=name,
+                    legendgroup=name,
+                    showlegend=col == 1,
+                    line={"color": COLORS[i], "dash": dash},
+                    marker={"symbol": symbol, "size": 8},
+                    customdata=[r["ef"] for r in rows],
+                    hovertemplate=(
+                        selector_name + "<br>ef=%{customdata}<br>Recall=%{y:.4f}"
+                        "<br>Distances/query=%{x:.1f}<extra>%{fullData.name}</extra>"
+                    ),
+                    row=1,
+                    col=col,
+                )
 
     figure.update_layout(
         template="plotly_white",
-        xaxis_title="Distance evaluations per query (lower is better)",
-        yaxis_title=f"Recall@{K}",
         title=f"Pendigits: {len(points)} points in {points.shape[1]}D, {len(queries)} queries",
-        yaxis={"range": [0.8, 1.01]},
-        legend={"x": 1, "y": 0, "xanchor": "right", "yanchor": "bottom"},
-        height=600,
+        legend={"orientation": "h", "y": -0.2, "groupclick": "togglegroup"},
+        height=650,
     )
+    figure.update_xaxes(title_text="Distance evaluations / query (lower is better)")
+    figure.update_yaxes(range=[0, 1.01])
+    figure.update_yaxes(title_text=f"Recall@{K}", row=1, col=1)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     figure.write_html(
         OUT, include_plotlyjs=True, config={"responsive": True, "displaylogo": False}
